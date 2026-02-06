@@ -36,7 +36,35 @@ def parse_listings(data):
             title = listing.get('title', '')
             locations = listing.get('locations', [])
             url = listing.get('url', '')
-            date_posted = listing.get('date_posted', '')  # Get original posting date
+            date_posted_timestamp = listing.get('date_posted', '')
+            
+            # Convert Unix timestamp to readable date
+            if date_posted_timestamp:
+                try:
+                    # Convert from milliseconds to seconds, then to datetime
+                    date_posted = datetime.fromtimestamp(int(date_posted_timestamp) / 1000).strftime('%Y-%m-%d')
+                except:
+                    date_posted = 'Unknown'
+            else:
+                date_posted = 'Unknown'
+            
+            # Format locations
+            if locations:
+                location_str = ', '.join(locations[:3])  # First 3 locations
+                if len(locations) > 3:
+                    location_str += f' +{len(locations)-3} more'
+            else:
+                location_str = 'Not specified'
+            
+            internships.append({
+                'company': company_name,
+                'role': title,
+                'location': location_str,
+                'link': url,
+                'original_date': date_posted  # Store converted date
+            })
+    
+    return internships
             
             # Format locations
             if locations:
