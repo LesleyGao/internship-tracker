@@ -125,6 +125,10 @@ def update_sheet(internships):
     
     # Write new data
     if new_data:
+        # Sort by original date (column index 5) - newest first
+        # Handle 'Unknown' dates by putting them at the end
+        new_data.sort(key=lambda x: x[5] if x[5] != 'Unknown' else '1900-01-01', reverse=True)
+        
         sheet.append_rows(new_data)
         print(f"Updated sheet with {len(new_data)} internships")
     else:
