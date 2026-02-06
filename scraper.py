@@ -30,53 +30,85 @@ def parse_markdown_table(content):
     """Parse the markdown table from README"""
     internships = []
     
-    # Find the table section
+    # Split into lines
     lines = content.split('\n')
     in_table = False
+    header_found = False
     
-    for line in lines:
+    for i, line in enumerate(lines):
         line = line.strip()
         
-        # Detect table start
-        if '| Company | Role | Location |' in line:
-            in_table = True
+        # Look for the table header - be flexible with spacing
+        if not header_found and 'Company' in line and 'Role' in line and 'Location' in line and line.startswith('|'):
+            header_found = True
+            print(f"Found table header at line {i}: {line[:100]}")
             continue
         
-        # Skip separator line
-        if in_table and '|---' in line:
+        # Skip the separator line (the one with dashes)
+        if header_found and not in_table and '---' in line:
+            in_table = True
+            print(f"Starting to parse table at line {i}")
             continue
         
         # Parse table rows
         if in_table and line.startswith('|'):
-            # Stop at end of table (empty line or non-table content)
-            if line.count('|') < 3:
-                break
-                
-            cells = [cell.strip() for cell in line.split('|')[1:-1]]  # Remove empty first/last
+            # Split by pipe and clean up
+            parts = line.split('|')
+            # Remove empty first and last elements
+            cells = [cell.strip() for cell in parts if cell.strip()]
             
+            # Debug: print first few rows
+            if len(internships) < 3:
+                print(f"Row {i}: {len(cells)} cells - {cells[:3] if len(cells) >= 3 else cells}")
+            
+            # Need at least 3 columns: Company, Role, Location
             if len(cells) >= 3:
-                # Extract company and link
-                company_match = re.search(r'\[([^\]]+)\]\(([^)]+)\)', cells[0])
-                company = company_match.group(1) if company_match else cells[0]
-                company_link = company_match.group(2) if company_match else ''
+                # Extract company name and link from markdown [text](url)
+                company_cell = cells[0]
+                company_match = re.search(r'\[([^\]]+)\]\(([^)]+)\)', company_cell)
+                if company_match:
+                    company = company_match.group(1)
+                    company_link = company_match.group(2)
+                else:
+                    company = company_cell
+                    company_link = ''
                 
-                # Extract role
-                role = cells[1]
+                # Role (might also have markdown links)
+                role_cell = cells[1]
+                role_match = re.search(r'\[([^\]]+)\]', role_cell)
+                role = role_match.group(1) if role_match else role_cell
                 
-                # Extract location and application link
-                location_match = re.search(r'\[([^\]]+)\]\(([^)]+)\)', cells[2])
-                location = location_match.group(1) if location_match else cells[2]
-                app_link = location_match.group(2) if location_match else ''
+                # Location and application link
+                location_cell = cells[2]
+                location_match = re.search(r'\[([^\]]+)\]\(([^)]+)\)', location_cell)
+                if location_match:
+                    location = location_match.group(1)
+                    app_link = location_match.group(2)
+                else:
+                    location = location_cell
+                    app_link = ''
                 
-                # Use application link if available, otherwise company link
+                # Use app link if available, otherwise company link
                 final_link = app_link or company_link
                 
-                internships.append({
-                    'company': company,
-                    'role': role,
-                    'location': location,
-                    'link': final_link
-                })
+                # Skip if company is empty or looks like a header
+                if company and company.lower() not in ['company', '---', '']:
+                    internships.append({
+                        'company': company,
+                        'role': role,
+                        'location': location,
+                        'link': final_link
+                    })
+        
+        # Stop if we hit an empty line or non-table content after table started
+        elif in_table and (not line or not line.startswith('|')):
+            print(f"End of table detected at line {i}")
+            break
+    
+    print(f"Total internships parsed: {len(internships)}")
+    if internships:
+        print(f"First internship: {internships[0]}")
+        print(f"Last internship: {internships[-1]}")
     
     return internships
 
@@ -89,12 +121,15 @@ def update_sheet(internships):
     sheet = client.open_by_key(SHEET_ID).sheet1
     
     # Get existing data (skip header)
-    existing_data = sheet.get_all_values()[1:]  # Skip header row
+    try:
+        existing_data = sheet.get_all_values()[1:]  # Skip header row
+    except:
+        existing_data = []
     
     # Create map of existing entries
     existing_map = {}
     for i, row in enumerate(existing_data):
-        if len(row) >= 2:
+        if len(row) >= 2 and row[0] and row[1]:  # Must have company and role
             key = f"{row[0]}_{row[1]}"  # company_role
             existing_map[key] = {
                 'row_index': i + 2,  # +2 for header and 0-indexing
@@ -122,7 +157,10 @@ def update_sheet(internships):
     
     # Clear existing data (keep header)
     if len(existing_data) > 0:
-        sheet.delete_rows(2, len(existing_data) + 1)
+        try:
+            sheet.delete_rows(2, len(existing_data) + 1)
+        except:
+            pass
     
     # Write new data
     if new_data:
@@ -134,16 +172,19 @@ def update_sheet(internships):
 def main():
     print("Fetching internship listings...")
     content = fetch_readme()
+    print(f"Fetched {len(content)} characters")
     
-    print("Parsing markdown table...")
+    print("\nParsing markdown table...")
     internships = parse_markdown_table(content)
     
-    print(f"Found {len(internships)} internships")
+    print(f"\nFound {len(internships)} internships")
     
-    print("Updating Google Sheet...")
-    update_sheet(internships)
-    
-    print("Done!")
+    if internships:
+        print("\nUpdating Google Sheet...")
+        update_sheet(internships)
+        print("Done!")
+    else:
+        print("ERROR: No internships were parsed. Check the table format.")
 
 if __name__ == '__main__':
     main()
