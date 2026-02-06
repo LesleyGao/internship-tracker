@@ -61,25 +61,7 @@ def parse_listings(data):
                 'role': title,
                 'location': location_str,
                 'link': url,
-                'original_date': date_posted  # Store converted date
-            })
-    
-    return internships
-            
-            # Format locations
-            if locations:
-                location_str = ', '.join(locations[:3])  # First 3 locations
-                if len(locations) > 3:
-                    location_str += f' +{len(locations)-3} more'
-            else:
-                location_str = 'Not specified'
-            
-            internships.append({
-                'company': company_name,
-                'role': title,
-                'location': location_str,
-                'link': url,
-                'original_date': date_posted  # Store original date from GitHub
+                'original_date': date_posted
             })
     
     return internships
@@ -94,17 +76,17 @@ def update_sheet(internships):
     
     # Get existing data (skip header)
     try:
-        existing_data = sheet.get_all_values()[1:]  # Skip header row
+        existing_data = sheet.get_all_values()[1:]
     except:
         existing_data = []
     
     # Create map of existing entries
     existing_map = {}
     for i, row in enumerate(existing_data):
-        if len(row) >= 2 and row[0] and row[1]:  # Must have company and role
-            key = f"{row[0]}_{row[1]}"  # company_role
+        if len(row) >= 2 and row[0] and row[1]:
+            key = f"{row[0]}_{row[1]}"
             existing_map[key] = {
-                'row_index': i + 2,  # +2 for header and 0-indexing
+                'row_index': i + 2,
                 'date_added_to_sheet': row[4] if len(row) > 4 else '',
                 'original_date': row[5] if len(row) > 5 else ''
             }
@@ -126,9 +108,9 @@ def update_sheet(internships):
             internship['role'],
             internship['location'],
             internship['link'],
-            date_added,  # When it first appeared in YOUR sheet
-            original_date,  # When it was originally posted on GitHub
-            today  # Last updated
+            date_added,
+            original_date,
+            today
         ])
     
     # Clear existing data (keep header)
