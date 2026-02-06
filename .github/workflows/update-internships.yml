@@ -2,7 +2,10 @@ name: Update Internship Listings
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    # 9am PST = 5pm UTC
+    - cron: '0 17 * * *'
+    # 9pm PST = 5am UTC (next day)
+    - cron: '0 5 * * *'
   workflow_dispatch:
 
 jobs:
