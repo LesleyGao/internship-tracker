@@ -2,9 +2,8 @@ name: Update Internship Listings
 
 on:
   schedule:
-    # Run every hour
     - cron: '0 * * * *'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   update:
@@ -29,19 +28,3 @@ jobs:
         SHEET_ID: ${{ secrets.SHEET_ID }}
       run: |
         python scraper.py
-```
-
-4. Scroll down and click **"Commit changes"**
-
----
-
-### Part D: Verify Your File Structure
-
-After creating all files, click on your repository name at the top to go back to the main page. You should see:
-```
-📁 .github/
-  📁 workflows/
-    📄 update-internships.yml
-📄 README.md
-📄 requirements.txt
-📄 scraper.py
