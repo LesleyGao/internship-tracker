@@ -41,8 +41,11 @@ def parse_listings(data):
             # Convert Unix timestamp to readable date
             if date_posted_timestamp:
                 try:
-                    # Convert from milliseconds to seconds, then to datetime
-                    date_posted = datetime.fromtimestamp(int(date_posted_timestamp) / 1000).strftime('%Y-%m-%d')
+                    timestamp = int(date_posted_timestamp)
+                    # If timestamp is very large, it's in milliseconds
+                    if timestamp > 10000000000:
+                        timestamp = timestamp / 1000
+                    date_posted = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')
                 except:
                     date_posted = 'Unknown'
             else:
