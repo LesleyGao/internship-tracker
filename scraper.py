@@ -36,6 +36,7 @@ def parse_listings(data):
             title = listing.get('title', '')
             locations = listing.get('locations', [])
             url = listing.get('url', '')
+            date_posted = listing.get('date_posted', '')  # Get original posting date
             
             # Format locations
             if locations:
@@ -49,7 +50,8 @@ def parse_listings(data):
                 'company': company_name,
                 'role': title,
                 'location': location_str,
-                'link': url
+                'link': url,
+                'original_date': date_posted  # Store original date from GitHub
             })
     
     return internships
@@ -75,7 +77,8 @@ def update_sheet(internships):
             key = f"{row[0]}_{row[1]}"  # company_role
             existing_map[key] = {
                 'row_index': i + 2,  # +2 for header and 0-indexing
-                'date_posted': row[4] if len(row) > 4 else ''
+                'date_added_to_sheet': row[4] if len(row) > 4 else '',
+                'original_date': row[5] if len(row) > 5 else ''
             }
     
     # Prepare new data
@@ -86,15 +89,18 @@ def update_sheet(internships):
         key = f"{internship['company']}_{internship['role']}"
         existing = existing_map.get(key)
         
-        date_posted = existing['date_posted'] if existing else today
+        # Use existing dates if job was already in sheet, otherwise use today
+        date_added = existing['date_added_to_sheet'] if existing else today
+        original_date = existing['original_date'] if existing else internship['original_date']
         
         new_data.append([
             internship['company'],
             internship['role'],
             internship['location'],
             internship['link'],
-            date_posted,
-            today
+            date_added,  # When it first appeared in YOUR sheet
+            original_date,  # When it was originally posted on GitHub
+            today  # Last updated
         ])
     
     # Clear existing data (keep header)
