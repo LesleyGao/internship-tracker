@@ -1,13 +1,12 @@
 import gspread
 from google.oauth2.service_account import Credentials
 import requests
-import re
 from datetime import datetime
 import os
 import json
 
-# Configuration
-GITHUB_RAW_URL = 'https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/README.md'
+# Configuration - Use the JSON API instead of parsing markdown
+LISTINGS_JSON_URL = 'https://raw.githubusercontent.com/SimplifyJobs/Summer2026-Internships/dev/.github/scripts/listings.json'
 SHEET_ID = os.environ.get('SHEET_ID')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
@@ -20,95 +19,38 @@ def get_credentials():
     creds_dict = json.loads(creds_json)
     return Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
 
-def fetch_readme():
-    """Fetch the README content from GitHub"""
-    response = requests.get(GITHUB_RAW_URL)
+def fetch_listings():
+    """Fetch the listings JSON from GitHub"""
+    response = requests.get(LISTINGS_JSON_URL)
     response.raise_for_status()
-    return response.text
+    return response.json()
 
-def parse_markdown_table(content):
-    """Parse the markdown table from README"""
+def parse_listings(data):
+    """Parse the JSON data into internship listings"""
     internships = []
     
-    # Split into lines
-    lines = content.split('\n')
-    in_table = False
-    header_found = False
-    
-    for i, line in enumerate(lines):
-        line = line.strip()
-        
-        # Look for the table header - be flexible with spacing
-        if not header_found and 'Company' in line and 'Role' in line and 'Location' in line and line.startswith('|'):
-            header_found = True
-            print(f"Found table header at line {i}: {line[:100]}")
-            continue
-        
-        # Skip the separator line (the one with dashes)
-        if header_found and not in_table and '---' in line:
-            in_table = True
-            print(f"Starting to parse table at line {i}")
-            continue
-        
-        # Parse table rows
-        if in_table and line.startswith('|'):
-            # Split by pipe and clean up
-            parts = line.split('|')
-            # Remove empty first and last elements
-            cells = [cell.strip() for cell in parts if cell.strip()]
+    for listing in data:
+        # Only include active software engineering internships
+        if listing.get('active', False) and listing.get('is_visible', True):
+            company_name = listing.get('company_name', '')
+            title = listing.get('title', '')
+            locations = listing.get('locations', [])
+            url = listing.get('url', '')
             
-            # Debug: print first few rows
-            if len(internships) < 3:
-                print(f"Row {i}: {len(cells)} cells - {cells[:3] if len(cells) >= 3 else cells}")
+            # Format locations
+            if locations:
+                location_str = ', '.join(locations[:3])  # First 3 locations
+                if len(locations) > 3:
+                    location_str += f' +{len(locations)-3} more'
+            else:
+                location_str = 'Not specified'
             
-            # Need at least 3 columns: Company, Role, Location
-            if len(cells) >= 3:
-                # Extract company name and link from markdown [text](url)
-                company_cell = cells[0]
-                company_match = re.search(r'\[([^\]]+)\]\(([^)]+)\)', company_cell)
-                if company_match:
-                    company = company_match.group(1)
-                    company_link = company_match.group(2)
-                else:
-                    company = company_cell
-                    company_link = ''
-                
-                # Role (might also have markdown links)
-                role_cell = cells[1]
-                role_match = re.search(r'\[([^\]]+)\]', role_cell)
-                role = role_match.group(1) if role_match else role_cell
-                
-                # Location and application link
-                location_cell = cells[2]
-                location_match = re.search(r'\[([^\]]+)\]\(([^)]+)\)', location_cell)
-                if location_match:
-                    location = location_match.group(1)
-                    app_link = location_match.group(2)
-                else:
-                    location = location_cell
-                    app_link = ''
-                
-                # Use app link if available, otherwise company link
-                final_link = app_link or company_link
-                
-                # Skip if company is empty or looks like a header
-                if company and company.lower() not in ['company', '---', '']:
-                    internships.append({
-                        'company': company,
-                        'role': role,
-                        'location': location,
-                        'link': final_link
-                    })
-        
-        # Stop if we hit an empty line or non-table content after table started
-        elif in_table and (not line or not line.startswith('|')):
-            print(f"End of table detected at line {i}")
-            break
-    
-    print(f"Total internships parsed: {len(internships)}")
-    if internships:
-        print(f"First internship: {internships[0]}")
-        print(f"Last internship: {internships[-1]}")
+            internships.append({
+                'company': company_name,
+                'role': title,
+                'location': location_str,
+                'link': url
+            })
     
     return internships
 
@@ -170,21 +112,25 @@ def update_sheet(internships):
         print("No internships found")
 
 def main():
-    print("Fetching internship listings...")
-    content = fetch_readme()
-    print(f"Fetched {len(content)} characters")
+    print("Fetching internship listings from JSON...")
+    data = fetch_listings()
+    print(f"Fetched {len(data)} total listings")
     
-    print("\nParsing markdown table...")
-    internships = parse_markdown_table(content)
+    print("\nParsing active internships...")
+    internships = parse_listings(data)
     
-    print(f"\nFound {len(internships)} internships")
+    print(f"\nFound {len(internships)} active internships")
     
     if internships:
+        print("Sample internships:")
+        for i, internship in enumerate(internships[:5]):
+            print(f"  {i+1}. {internship['company']} - {internship['role']}")
+        
         print("\nUpdating Google Sheet...")
         update_sheet(internships)
         print("Done!")
     else:
-        print("ERROR: No internships were parsed. Check the table format.")
+        print("ERROR: No internships were found.")
 
 if __name__ == '__main__':
     main()
